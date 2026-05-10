@@ -1,30 +1,18 @@
-import os
-import json
-import tempfile
-from tkinter import filedialog
-
 import customtkinter as ctk
-
-DEFAULT_SCHEDULE = ""
-DEFAULT_LUNCH = ""
-
-SETTINGS_FILE = os.path.join(
-    tempfile.gettempdir(),
-    "client_sorter_settings.json"
-)
-
+from tkinter import filedialog
+from core.config_manager import ConfigManager
 
 class SettingsWindow(ctk.CTkToplevel):
 
-    def __init__(self, parent):
+    def __init__(self, parent, config):
         super().__init__(parent)
+
+        self.config = config
 
         self.title("Настройки")
         self.geometry("800x500")
 
         self.transient(parent)
-
-        self.selected_excel_file = ""
 
         self.create_ui()
         self.load_settings()
@@ -116,7 +104,6 @@ class SettingsWindow(ctk.CTkToplevel):
             padx=20
         )
 
-        # кнопка обзор
         self.browse_button = ctk.CTkButton(
             self,
             text="Обзор",
@@ -132,7 +119,6 @@ class SettingsWindow(ctk.CTkToplevel):
             sticky="w"
         )
 
-        # поле пути к файлу
         self.file_path_entry = ctk.CTkEntry(self)
 
         self.file_path_entry.grid(
@@ -143,8 +129,22 @@ class SettingsWindow(ctk.CTkToplevel):
             sticky="ew"
         )
 
-        # пустая строка растягивается
         self.grid_rowconfigure(7, weight=1)
+
+        # ---------------- INFO  ----------------
+        hint_label = ctk.CTkLabel(
+            self,
+            text="Для вставки текста смените раскладку клавиатуры на английскую",
+            font=("Arial", 12, "italic"),
+            text_color="gray"
+        )
+
+        hint_label.grid(
+            row=7,
+            column=0,
+            columnspan=2,
+            pady=(0, 10)
+        )
 
         # ---------------- RESET BUTTON ----------------
 
@@ -190,81 +190,33 @@ class SettingsWindow(ctk.CTkToplevel):
         )
 
         if file_path:
-
-            self.selected_excel_file = file_path
-
             self.file_path_entry.delete(0, "end")
             self.file_path_entry.insert(0, file_path)
 
     def save_settings(self):
 
-        self.selected_excel_file = self.file_path_entry.get()
+        self.config.schedule_url = self.schedule_entry.get()
+        self.config.lunch_url = self.lunch_entry.get()
+        self.config.excel_file = self.file_path_entry.get()
 
-        settings = {
-            "schedule_url": self.schedule_entry.get(),
-            "lunch_url": self.lunch_entry.get(),
-            "excel_file": self.selected_excel_file
-        }
-
-        with open(SETTINGS_FILE, "w", encoding="utf-8") as f:
-            json.dump(settings, f, ensure_ascii=False, indent=4)
+        ConfigManager.save(self.config)
 
         print("Настройки сохранены")
 
         self.destroy()
 
     def load_settings(self):
-
         self.schedule_entry.delete(0, "end")
         self.lunch_entry.delete(0, "end")
         self.file_path_entry.delete(0, "end")
 
-        schedule_url = DEFAULT_SCHEDULE
-        lunch_url = DEFAULT_LUNCH
-        excel_file = ""
-
-        if os.path.exists(SETTINGS_FILE):
-
-            try:
-                with open(SETTINGS_FILE, "r", encoding="utf-8") as f:
-                    settings = json.load(f)
-
-                schedule_url = settings.get(
-                    "schedule_url",
-                    DEFAULT_SCHEDULE
-                )
-
-                lunch_url = settings.get(
-                    "lunch_url",
-                    DEFAULT_LUNCH
-                )
-
-                excel_file = settings.get(
-                    "excel_file",
-                    ""
-                )
-
-            except Exception as e:
-                print("Ошибка загрузки настроек:", e)
-
-        self.schedule_entry.insert(0, schedule_url)
-        self.lunch_entry.insert(0, lunch_url)
-        self.file_path_entry.insert(0, excel_file)
-
-        self.selected_excel_file = excel_file
+        self.schedule_entry.insert(0, self.config.schedule_url)
+        self.lunch_entry.insert(0, self.config.lunch_url)
+        self.file_path_entry.insert(0, self.config.excel_file)
 
     def reset_settings(self):
-
-        if os.path.exists(SETTINGS_FILE):
-            os.remove(SETTINGS_FILE)
-
-        self.schedule_entry.delete(0, "end")
-        self.lunch_entry.delete(0, "end")
-        self.file_path_entry.delete(0, "end")
-
-        self.schedule_entry.insert(0, DEFAULT_SCHEDULE)
-        self.lunch_entry.insert(0, DEFAULT_LUNCH)
-
-        self.selected_excel_file = ""
+        self.config.set_defaults()
+        ConfigManager.save(self.config)
+        self.load_settings()
 
         print("Настройки сброшены")

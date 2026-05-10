@@ -1,16 +1,17 @@
 import customtkinter as ctk
 from ui.settings_window import SettingsWindow
+from core.config_manager import ConfigManager
 
 class MainWindow(ctk.CTk):
 
     def __init__(self):
         super().__init__()
 
-        self.geometry("1600x900")
+        self.geometry("1000x600")
         self.title("Client Sorter")
 
-#        self.schedule_parser = None
-#        self.lunch_parser = None
+        self.config = ConfigManager.load()
+
         self.settings_window = None
         self.create_ui()
 
@@ -33,8 +34,7 @@ class MainWindow(ctk.CTk):
 
     def open_settings(self):
 
-        # если окно уже открыто — просто вывести поверх
         if self.settings_window is None or not self.settings_window.winfo_exists():
-            self.settings_window = SettingsWindow(self)
+            self.settings_window = SettingsWindow(self, self.config)
         else:
             self.settings_window.focus()
