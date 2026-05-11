@@ -1,6 +1,7 @@
 import customtkinter as ctk
 import pandas as pd
 from core.config_manager import ConfigManager
+import re
 
 class StaffWindow(ctk.CTkToplevel):
 
@@ -139,23 +140,34 @@ class StaffWindow(ctk.CTkToplevel):
     def load_lunch_data(self):
 
         url = self.config.lunch_url
-
         if not url:
             return {}
 
         try:
-
             df = pd.read_csv(self.convert_to_csv_url(url))
-
             lunch_map = {}
 
             for _, row in df.iterrows():
+                # колонка A
+                window_number = row.iloc[0] if len(row) > 0 else None
+                try:
+                    int(window_number)
+                except:
+                    continue
 
+                # колонка B
                 fio = row.iloc[1] if len(row) > 1 else None
+
+                # колонка C
                 lunch = row.iloc[2] if len(row) > 2 else ""
 
                 if pd.notna(fio):
-                    lunch_map[str(fio).strip()] = str(lunch)
+                    fio = str(fio).strip()
+
+                    lunch_map[fio] = {
+                        "window": int(window_number),
+                        "lunch": str(lunch)
+                    }
 
             return lunch_map
 
@@ -223,20 +235,27 @@ class StaffWindow(ctk.CTkToplevel):
                 continue
 
             fio = str(fio).strip()
+            if fio not in self.lunch_data:
+                continue
 
             # сохранённые значения
             person_state = saved_state.get(fio, {})
-
-            is_active = person_state.get("active", True)
 
             schedule_value = person_state.get(
                 "schedule",
                 row.get(date, "")
             )
 
+            default_active = self.is_schedule_active(schedule_value)
+
+            is_active = person_state.get(
+                "active",
+                default_active
+            )
+
             lunch_value = person_state.get(
                 "lunch",
-                self.lunch_data.get(fio, "")
+                self.lunch_data[fio]["lunch"]
             )
 
             if pd.isna(schedule_value):
@@ -362,3 +381,13 @@ class StaffWindow(ctk.CTkToplevel):
             self.render_table(current_date)
 
         print("Настройки персонала сброшены")
+
+    def is_schedule_active(self, value):
+
+        if not value:
+            return False
+
+        value = str(value).strip()
+        pattern = r"^\d{1,2}:\d{2}\s*-\s*\d{1,2}:\d{2}$"
+
+        return bool(re.match(pattern, value))
