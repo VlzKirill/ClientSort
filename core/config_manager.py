@@ -23,10 +23,18 @@ class ConfigManager:
             config.schedule_url = data.get("schedule_url", "")
             config.lunch_url = data.get("lunch_url", "")
             config.excel_file = data.get("excel_file", "")
+            config.staff_state = data.get("staff_state", {})
 
         return config
 
     @staticmethod
     def save(config: AppConfig):
+        data = {
+            "schedule_url": config.schedule_url,
+            "lunch_url": config.lunch_url,
+            "excel_file": config.excel_file,
+            "staff_state": config.staff_state
+        }
+
         with open(SETTINGS_FILE, "w", encoding="utf-8") as f:
-            json.dump(config.__dict__, f, ensure_ascii=False, indent=4)
+            json.dump(data, f, ensure_ascii=False, indent=4)

@@ -215,7 +215,7 @@ class SettingsWindow(ctk.CTkToplevel):
         self.file_path_entry.insert(0, self.config.excel_file)
 
     def reset_settings(self):
-        self.config.set_defaults()
+        self.config.reset_main_settings()
         ConfigManager.save(self.config)
         self.load_settings()
 
