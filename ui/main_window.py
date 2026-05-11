@@ -2,6 +2,7 @@ import customtkinter as ctk
 from ui.settings_window import SettingsWindow
 from ui.staff_window import StaffWindow
 from core.config_manager import ConfigManager
+from ui.help_window import HelpWindow
 
 class MainWindow(ctk.CTk):
 
@@ -13,6 +14,7 @@ class MainWindow(ctk.CTk):
 
         self.config = ConfigManager.load()
 
+        self.help_window = None
         self.settings_window = None
         self.staff_window = None
         self.create_ui()
@@ -43,8 +45,31 @@ class MainWindow(ctk.CTk):
             font=("Arial", 20),
             command=self.open_staff
         )
-
         staff_button.pack(side="left", padx=5, pady=5)
+
+        # # Выбор даты
+        # self.selected_date = ctk.StringVar()
+        # saved_dates = list(self.config.staff_state.keys())
+        #
+        # date_menu = ctk.CTkOptionMenu(
+        #     top_frame,
+        #     variable=self.selected_date,
+        #     values=saved_dates
+        # )
+        #
+        # date_menu.pack(side="left", padx=10)
+        #
+        # if saved_dates:
+        #     self.selected_date.set(saved_dates[0])
+
+        # Кнопка справки
+        help_button = ctk.CTkButton(
+            top_frame,
+            text="?",
+            width=30,
+            command=self.open_help
+        )
+        help_button.pack(side="right", padx=10)
 
     def open_settings(self):
 
@@ -59,3 +84,9 @@ class MainWindow(ctk.CTk):
             self.staff_window = StaffWindow(self, self.config)
         else:
             self.staff_window.focus()
+
+    def open_help(self):
+        if self.help_window is None or not self.help_window.winfo_exists():
+            self.help_window = HelpWindow(self)
+        else:
+            self.help_window.focus()
