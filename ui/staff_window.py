@@ -71,12 +71,19 @@ class StaffWindow(ctk.CTkToplevel):
         self.apply_btn.grid(row=3, column=1, sticky="se", padx=20, pady=20)
 
         # ---------------- EXIT BUTTON ----------------
-        self.apply_btn = ctk.CTkButton(
+        self.exit_btn = ctk.CTkButton(
             self,
             text="Выход",
             command=self.exit_staff_settings
         )
-        self.apply_btn.grid(row=3, column=2, sticky="se", padx=20, pady=20)
+
+        self.exit_btn.grid(
+            row=3,
+            column=2,
+            sticky="se",
+            padx=20,
+            pady=20
+        )
 
     # ---------------- DATA LOAD ----------------
     def load_staff(self):
