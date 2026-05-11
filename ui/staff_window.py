@@ -353,7 +353,7 @@ class StaffWindow(ctk.CTkToplevel):
             }
 
         ConfigManager.save(self.config)
-
+        self.master.update_dates()
         print("Сохранено")
 
     # ---------------- CSV FIX ----------------
@@ -379,7 +379,7 @@ class StaffWindow(ctk.CTkToplevel):
         current_date = self.date_var.get()
         if current_date:
             self.render_table(current_date)
-
+        self.master.update_dates()
         print("Настройки персонала сброшены")
 
     def is_schedule_active(self, value):
