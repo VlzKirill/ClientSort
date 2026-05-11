@@ -45,45 +45,66 @@ class StaffWindow(ctk.CTkToplevel):
         self.table_frame = ctk.CTkScrollableFrame(self)
         self.table_frame.grid(row=2, column=0, sticky="nsew", padx=10, pady=10)
 
+        # ---------------- BOTTOM FRAME ----------------
+
+        self.bottom_frame = ctk.CTkFrame(self, fg_color="transparent")
+        self.bottom_frame.grid(
+            row=3,
+            column=0,
+            sticky="ew",
+            padx=20,
+            pady=20
+        )
+
+        self.bottom_frame.grid_columnconfigure(0, weight=1)
+
         # ---------------- RESET BUTTON ----------------
 
         self.reset_button = ctk.CTkButton(
-            self,
+            self.bottom_frame,
             text="Сброс настроек",
             fg_color="gray",
             command=self.reset_staff_settings
         )
 
         self.reset_button.grid(
-            row=3,
+            row=0,
             column=0,
-            sticky="sw",
-            padx=20,
-            pady=20
+            sticky="w"
+        )
+
+        # ---------------- RIGHT BUTTONS FRAME ----------------
+
+        self.right_buttons = ctk.CTkFrame(
+            self.bottom_frame,
+            fg_color="transparent"
+        )
+
+        self.right_buttons.grid(
+            row=0,
+            column=1,
+            sticky="e"
         )
 
         # ---------------- APPLY BUTTON ----------------
+
         self.apply_btn = ctk.CTkButton(
-            self,
+            self.right_buttons,
             text="Применить",
             command=self.save_state
         )
-        self.apply_btn.grid(row=3, column=1, sticky="se", padx=20, pady=20)
+
+        self.apply_btn.pack(side="left", padx=(0, 10))
 
         # ---------------- EXIT BUTTON ----------------
+
         self.exit_btn = ctk.CTkButton(
-            self,
+            self.right_buttons,
             text="Выход",
-            command=self.exit_staff_settings
+            command=self.destroy
         )
 
-        self.exit_btn.grid(
-            row=3,
-            column=2,
-            sticky="se",
-            padx=20,
-            pady=20
-        )
+        self.exit_btn.pack(side="left")
 
     # ---------------- DATA LOAD ----------------
     def load_staff(self):
@@ -201,6 +222,3 @@ class StaffWindow(ctk.CTkToplevel):
             self.render_table(current_date)
 
         print("Настройки персонала сброшены")
-
-    def exit_staff_settings(self):
-        self.destroy()
