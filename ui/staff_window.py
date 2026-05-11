@@ -16,10 +16,13 @@ class StaffWindow(ctk.CTkToplevel):
 
         self.df = None
         self.date_columns = []
-        self.check_vars = {}  # (fio -> BooleanVar)
+        self.check_vars = {}
+        self.schedule_entries = {}
+        self.lunch_entries = {}
 
         self.create_ui()
         self.load_staff()
+
 
     # ---------------- UI ----------------
     def create_ui(self):
@@ -116,6 +119,7 @@ class StaffWindow(ctk.CTkToplevel):
 
         try:
             self.df = pd.read_csv(self.convert_to_csv_url(url))
+            self.lunch_data = self.load_lunch_data()
 
             # берём колонки-даты
             self.date_columns = [
@@ -132,6 +136,34 @@ class StaffWindow(ctk.CTkToplevel):
         except Exception as e:
             print("Ошибка загрузки:", e)
 
+    def load_lunch_data(self):
+
+        url = self.config.lunch_url
+
+        if not url:
+            return {}
+
+        try:
+
+            df = pd.read_csv(self.convert_to_csv_url(url))
+
+            lunch_map = {}
+
+            for _, row in df.iterrows():
+
+                fio = row.iloc[1] if len(row) > 1 else None
+                lunch = row.iloc[2] if len(row) > 2 else ""
+
+                if pd.notna(fio):
+                    lunch_map[str(fio).strip()] = str(lunch)
+
+            return lunch_map
+
+        except Exception as e:
+
+            print("Ошибка загрузки обедов:", e)
+            return {}
+
     # ---------------- DATE CHANGE ----------------
     def on_date_selected(self, value):
         self.render_table(value)
@@ -139,46 +171,152 @@ class StaffWindow(ctk.CTkToplevel):
     # ---------------- TABLE RENDER ----------------
     def render_table(self, date):
 
+        # очистка таблицы
         for widget in self.table_frame.winfo_children():
             widget.destroy()
 
         self.check_vars.clear()
+        self.schedule_entries.clear()
+        self.lunch_entries.clear()
 
+        # сохранённые данные
         saved_state = self.config.staff_state.get(date, {})
 
-        # header
+        # ---------------- HEADER ----------------
+
         header = ctk.CTkFrame(self.table_frame)
         header.pack(fill="x", pady=2)
 
-        ctk.CTkLabel(header, text="Active", width=80).pack(side="left")
-        ctk.CTkLabel(header, text="ФИО", width=300).pack(side="left")
-        ctk.CTkLabel(header, text="Расписание").pack(side="left")
+        header.grid_columnconfigure(0, minsize=80)
+        header.grid_columnconfigure(1, weight=1, minsize=300)
+        header.grid_columnconfigure(2, weight=1, minsize=150)
+        header.grid_columnconfigure(3, weight=1, minsize=150)
+
+        ctk.CTkLabel(
+            header,
+            text="Active",
+            width=80
+        ).grid(row=0, column=0, padx=5, sticky="w")
+
+        ctk.CTkLabel(
+            header,
+            text="ФИО"
+        ).grid(row=0, column=1, padx=5, sticky="w")
+
+        ctk.CTkLabel(
+            header,
+            text="Расписание"
+        ).grid(row=0, column=2, padx=5, sticky="w")
+
+        ctk.CTkLabel(
+            header,
+            text="Обед"
+        ).grid(row=0, column=3, padx=5, sticky="w")
+
+        # ---------------- ROWS ----------------
 
         for _, row in self.df.iterrows():
 
             fio = row.get("ФИО")
+
             if pd.isna(fio):
                 continue
 
+            fio = str(fio).strip()
+
+            # сохранённые значения
+            person_state = saved_state.get(fio, {})
+
+            is_active = person_state.get("active", True)
+
+            schedule_value = person_state.get(
+                "schedule",
+                row.get(date, "")
+            )
+
+            lunch_value = person_state.get(
+                "lunch",
+                self.lunch_data.get(fio, "")
+            )
+
+            if pd.isna(schedule_value):
+                schedule_value = ""
+
+            if pd.isna(lunch_value):
+                lunch_value = ""
+
+            # строка
             frame = ctk.CTkFrame(self.table_frame)
             frame.pack(fill="x", pady=1)
 
-            # 🔥 вот тут restore состояния
-            is_active = saved_state.get(fio, True)
+            frame.grid_columnconfigure(0, minsize=80)
+            frame.grid_columnconfigure(1, weight=1, minsize=300)
+            frame.grid_columnconfigure(2, weight=1, minsize=150)
+            frame.grid_columnconfigure(3, weight=1, minsize=150)
+
+            # ---------------- ACTIVE ----------------
 
             var = ctk.BooleanVar(value=is_active)
+
             self.check_vars[fio] = var
 
-            cb = ctk.CTkCheckBox(frame, text="", variable=var, width=50)
-            cb.pack(side="left", padx=10)
+            cb = ctk.CTkCheckBox(
+                frame,
+                text="",
+                variable=var,
+                width=50
+            )
 
-            ctk.CTkLabel(frame, text=str(fio), width=300).pack(side="left")
+            cb.grid(
+                row=0,
+                column=0,
+                padx=5,
+                sticky="w"
+            )
 
-            value = row.get(date, "")
-            if pd.isna(value):
-                value = ""
+            # ---------------- FIO ----------------
 
-            ctk.CTkLabel(frame, text=str(value)).pack(side="left")
+            ctk.CTkLabel(
+                frame,
+                text=fio
+            ).grid(
+                row=0,
+                column=1,
+                padx=5,
+                sticky="w"
+            )
+
+            # ---------------- SCHEDULE ----------------
+
+            schedule_entry = ctk.CTkEntry(frame)
+
+            schedule_entry.insert(0, str(schedule_value))
+
+            schedule_entry.grid(
+                row=0,
+                column=2,
+                padx=5,
+                pady=2,
+                sticky="ew"
+            )
+
+            self.schedule_entries[fio] = schedule_entry
+
+            # ---------------- LUNCH ----------------
+
+            lunch_entry = ctk.CTkEntry(frame)
+
+            lunch_entry.insert(0, str(lunch_value))
+
+            lunch_entry.grid(
+                row=0,
+                column=3,
+                padx=5,
+                pady=2,
+                sticky="ew"
+            )
+
+            self.lunch_entries[fio] = lunch_entry
 
 
     # ---------------- SAVE STATE ----------------
@@ -186,16 +324,18 @@ class StaffWindow(ctk.CTkToplevel):
 
         selected_date = self.date_var.get()
 
-        if not hasattr(self.config, "staff_state"):
-            self.config.staff_state = {}
+        self.config.staff_state[selected_date] = {}
 
-        self.config.staff_state[selected_date] = {
-            fio: var.get()
-            for fio, var in self.check_vars.items()
-        }
+        for fio, var in self.check_vars.items():
+            self.config.staff_state[selected_date][fio] = {
+                "active": var.get(),
+                "schedule": self.schedule_entries[fio].get(),
+                "lunch": self.lunch_entries[fio].get()
+            }
 
         ConfigManager.save(self.config)
-        print("Сохранена конфигурация персонала")
+
+        print("Сохранено")
 
     # ---------------- CSV FIX ----------------
     def convert_to_csv_url(self, url: str) -> str:
