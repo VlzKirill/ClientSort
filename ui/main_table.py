@@ -1,6 +1,7 @@
 # main_table.py
 import pandas as pd
 import customtkinter as ctk
+import random
 
 class MainTable:
     def __init__(self, config, date):
@@ -22,7 +23,7 @@ class MainTable:
             self.df = pd.DataFrame(columns=["Время", "Гражданин", "Цель"])
 
     def show_table(self, parent):
-        # Скроллируемый фрейм (как в StaffWindow)
+        # Скроллируемый фрейм
         table_frame = ctk.CTkScrollableFrame(parent)
         table_frame.pack(fill="both", expand=True, padx=10, pady=(5, 10))
 
@@ -52,6 +53,23 @@ class MainTable:
             )
             lbl.grid(row=0, column=i, padx=5, pady=5, sticky="w")
 
+        # ---------------- Логика распределения сотрудников ----------------
+        assigned_employees = []
+
+        # Берём активных сотрудников на выбранную дату
+        staff_for_date = self.config.staff_state.get(self.date, {})
+        active_employees = [fio for fio, s in staff_for_date.items() if s.get("active", False)]
+
+        if not active_employees:
+            print("Нет активных сотрудников на выбранную дату")
+            assigned_employees = ["Не назначен"] * len(self.df)
+        else:
+            # Если сотрудников меньше, чем клиентов, повторяем список
+            while len(active_employees) < len(self.df):
+                active_employees += active_employees
+            assigned_employees = active_employees[:len(self.df)]
+            random.shuffle(assigned_employees)
+
         # ---------------- ROWS ----------------
         for idx, row in self.df.iterrows():
             row_frame = ctk.CTkFrame(table_frame)
@@ -62,7 +80,7 @@ class MainTable:
                     val = row.iloc[i]
                     text = str(val) if pd.notna(val) else ""
                 else:
-                    text = ""  # четвертый столбец пустой
+                    text = assigned_employees[idx]  # 4-й столбец — назначенный сотрудник
 
                 lbl = ctk.CTkLabel(
                     row_frame,
