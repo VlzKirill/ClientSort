@@ -8,6 +8,7 @@ class MainTable:
         self.config = config
         self.date = date
         self.df = None
+        self.assigned = []  # <-- сюда будем сохранять распределение
         self.load_excel()
 
     def load_excel(self):
@@ -29,8 +30,6 @@ class MainTable:
 
         # ---------------- HEADER ----------------
         headers = ["Время", "Гражданин", "Цель", "Кому назначено"]
-
-        # Вычисляем ширину колонок по содержимому
         self.column_widths = []
         for i, col in enumerate(headers):
             max_len = len(col)
@@ -42,7 +41,6 @@ class MainTable:
 
         header_row = ctk.CTkFrame(table_frame)
         header_row.pack(fill="x", pady=(0, 2))
-
         for i, col in enumerate(headers):
             lbl = ctk.CTkLabel(
                 header_row,
@@ -54,34 +52,29 @@ class MainTable:
             lbl.grid(row=0, column=i, padx=5, pady=5, sticky="w")
 
         # ---------------- Логика распределения сотрудников ----------------
-        assigned_employees = []
-
-        # Берём активных сотрудников на выбранную дату
         staff_for_date = self.config.staff_state.get(self.date, {})
         active_employees = [fio for fio, s in staff_for_date.items() if s.get("active", False)]
 
         if not active_employees:
             print("Нет активных сотрудников на выбранную дату")
-            assigned_employees = ["Не назначен"] * len(self.df)
+            self.assigned = ["Не назначен"] * len(self.df)
         else:
             # Если сотрудников меньше, чем клиентов, повторяем список
             while len(active_employees) < len(self.df):
                 active_employees += active_employees
-            assigned_employees = active_employees[:len(self.df)]
-            random.shuffle(assigned_employees)
+            self.assigned = active_employees[:len(self.df)]
+            random.shuffle(self.assigned)
 
         # ---------------- ROWS ----------------
         for idx, row in self.df.iterrows():
             row_frame = ctk.CTkFrame(table_frame)
             row_frame.pack(fill="x", pady=1)
-
             for i in range(4):
                 if i < 3:
                     val = row.iloc[i]
                     text = str(val) if pd.notna(val) else ""
                 else:
-                    text = assigned_employees[idx]  # 4-й столбец — назначенный сотрудник
-
+                    text = self.assigned[idx]  # используем self.assigned
                 lbl = ctk.CTkLabel(
                     row_frame,
                     text=text,

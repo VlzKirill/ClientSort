@@ -2,3 +2,4 @@ pyinstaller
 customtkinter
 pandas
 jinja2
+reportlab
