@@ -8,7 +8,7 @@ class MainTable:
         self.config = config
         self.date = date
         self.df = None
-        self.assigned = []  # <-- сюда будем сохранять распределение
+        self.assigned = []
         self.load_excel()
 
     def load_excel(self):
