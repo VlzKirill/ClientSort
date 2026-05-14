@@ -65,7 +65,7 @@ class MainTable:
     # ---------------- Алгоритм распределения ----------------
     def smart_assign(self):
         if self.df.empty:
-            return ["Не назначен"] * 0
+            return ["Не назначен"] * len(self.df)
 
         staff_for_date = self.config.staff_state.get(self.date, {})
         staff_data = []
@@ -81,7 +81,8 @@ class MainTable:
                 "start": start,
                 "end": end,
                 "lunch": lunches,
-                "assigned": [],
+                "assigned": [],  # все клиенты
+                "assigned_times": {},  # время: список услуг
                 "services": {},  # количество клиентов по типу услуги
             })
 
@@ -91,20 +92,19 @@ class MainTable:
         # Подготовка клиентов
         clients = []
         for idx, row in self.df.iterrows():
-            time_obj = self.parse_time(row.iloc[0])  # первый столбец "Время"
+            time_obj = self.parse_time(row.iloc[0])
             if not time_obj:
                 continue
             clients.append({
                 "idx": idx,
-                "fio": row.iloc[1],  # второй столбец "Гражданин"
-                "service": row.iloc[2],  # третий столбец "Цель"
+                "fio": row.iloc[1],
+                "service": row.iloc[2],
                 "time": time_obj
             })
 
-        # Сортировка по времени
+        # Сортировка клиентов по времени
         clients.sort(key=lambda x: x["time"])
 
-        # Группировка по времени
         from collections import defaultdict
         clients_by_time = defaultdict(list)
         for c in clients:
@@ -112,26 +112,39 @@ class MainTable:
 
         assigned_dict = {}
 
-        # Распределяем клиентов по времени
+        # ---------------- Распределение по времени ----------------
         for time_slot in sorted(clients_by_time.keys()):
             clients_this_time = clients_by_time[time_slot]
-            random.shuffle(clients_this_time)
+            random.shuffle(clients_this_time)  # рандомизируем порядок
 
+            # Проверяем, кто свободен в этот момент
+            available_staff = [s for s in staff_data if self.is_available(s, time_slot)]
+            if not available_staff:
+                available_staff = staff_data.copy()  # если нет никого свободного, берём всех
+
+            # Для каждого клиента распределяем равномерно
             for client in clients_this_time:
-                # Список доступных сотрудников
-                available_staff = [s for s in staff_data if self.is_available(s, time_slot)]
-                if not available_staff:
-                    available_staff = sorted(staff_data, key=lambda s: len(s["assigned"]))
+                # Сначала выбираем тех, у кого меньше назначений
+                available_staff.sort(key=lambda s: (len(s["assigned"]), s["services"].get(client["service"], 0)))
 
-                # Выбираем того, у кого меньше клиентов этого типа
-                available_staff.sort(key=lambda s: s["services"].get(client["service"], 0))
-                chosen = available_staff[0]
+                # Ищем сотрудника, у которого на это время ещё нет такого типа услуги
+                chosen = None
+                for s in available_staff:
+                    services_at_time = s["assigned_times"].get(time_slot, [])
+                    if client["service"] not in services_at_time:
+                        chosen = s
+                        break
+                # Если все заняты этим типом услуги на это время, берём первого по минимальной загрузке
+                if not chosen:
+                    chosen = available_staff[0]
 
+                # Назначаем клиента
                 assigned_dict[client["idx"]] = chosen["fio"]
                 chosen["assigned"].append(client["fio"])
                 chosen["services"][client["service"]] = chosen["services"].get(client["service"], 0) + 1
+                chosen["assigned_times"].setdefault(time_slot, []).append(client["service"])
 
-        # Формируем список назначений по индексам DataFrame
+        # Возвращаем список назначений по индексам DataFrame
         assigned_list = [assigned_dict.get(idx, "Не назначен") for idx in range(len(self.df))]
         return assigned_list
 
