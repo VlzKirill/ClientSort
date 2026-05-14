@@ -1,8 +1,4 @@
 pyinstaller
 customtkinter
 pandas
-#openpyxl
-#reportlab
-#gspread
-#google-auth
-#tkcalendar
+jinja2

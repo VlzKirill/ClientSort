@@ -4,6 +4,8 @@ from ui.settings_window import SettingsWindow
 from ui.staff_window import StaffWindow
 from core.config_manager import ConfigManager
 from ui.help_window import HelpWindow
+from ui.main_table import MainTable
+import tkinter.messagebox as mb
 
 class MainWindow(ctk.CTk):
 
@@ -22,6 +24,7 @@ class MainWindow(ctk.CTk):
         self.staff_window = None
         self.selected_date = None
         self.date_menu = None
+        self.main_table_frame = None
 
         self.create_ui()
         self.update_dates()
@@ -70,6 +73,17 @@ class MainWindow(ctk.CTk):
 
         self.date_menu.pack(side="left", padx=10)
 
+        #Кнопка распределить
+        distribute_button = ctk.CTkButton(
+            top_frame,
+            text="Распределить",
+            width=40,
+            height=40,
+            font=("Arial", 18),
+            command=self.show_main_table
+        )
+        distribute_button.pack(side="left", padx=5, pady=5)
+
         # Кнопка справки
         help_button = ctk.CTkButton(
             top_frame,
@@ -102,7 +116,17 @@ class MainWindow(ctk.CTk):
             self.help_window.focus()
 
     def sort_dates(self, date_list):
-        return sorted(date_list, key=lambda d: datetime.strptime(d, "%d.%m"))
+        valid_dates = []
+        for d in date_list:
+            try:
+                # проверяем, можно ли распарсить
+                datetime.strptime(d, "%d.%m")
+                valid_dates.append(d)
+            except ValueError:
+                continue  # пропускаем некорректные значения
+
+        # сортируем только валидные даты
+        return sorted(valid_dates, key=lambda d: datetime.strptime(d, "%d.%m"))
 
     def update_dates(self):
         saved_dates = list(self.config.staff_state.keys())
@@ -115,3 +139,25 @@ class MainWindow(ctk.CTk):
 
         if current not in saved_dates or current == self.DEFAULT_DATE_TEXT:
             self.selected_date.set(self.DEFAULT_DATE_TEXT)
+
+    from ui.main_table import MainTable
+
+    def show_main_table(self):
+        # если уже есть старая таблица, уничтожаем
+        if hasattr(self, "main_table_frame") and self.main_table_frame is not None:
+            self.main_table_frame.destroy()
+
+        if self.selected_date.get() == self.DEFAULT_DATE_TEXT:
+            mb.showerror("Ошибка", "Выберите дату!")
+            return
+
+        if not self.config.excel_file:
+            mb.showerror("Ошибка", "Выберите Excel файл!")
+            return
+
+        # Создаём таблицу и сразу рендерим
+        self.main_table_frame = ctk.CTkFrame(self)
+        self.main_table_frame.pack(fill="both", expand=True, padx=10, pady=(5, 10))
+
+        table = MainTable(self.config, self.selected_date.get())
+        table.show_table(self.main_table_frame)
