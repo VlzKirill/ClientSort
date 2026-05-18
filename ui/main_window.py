@@ -2,6 +2,7 @@ import customtkinter as ctk
 from datetime import datetime
 from ui.settings_window import SettingsWindow
 from ui.staff_window import StaffWindow
+from ui.clients_window import ClientsWindow
 from core.config_manager import ConfigManager
 from ui.help_window import HelpWindow
 from ui.main_table import MainTable
@@ -22,6 +23,7 @@ class MainWindow(ctk.CTk):
         self.help_window = None
         self.settings_window = None
         self.staff_window = None
+        self.clients_window = None
         self.selected_date = None
         self.date_menu = None
         self.main_table_frame = None
@@ -55,6 +57,17 @@ class MainWindow(ctk.CTk):
             height=40,
             font=("Arial", 20),
             command=self.open_staff
+        )
+        staff_button.pack(side="left", padx=5, pady=5)
+
+        # кнопка клиентов
+        staff_button = ctk.CTkButton(
+            top_frame,
+            text="🤝 Клиенты",
+            width=40,
+            height=40,
+            font=("Arial", 20),
+            command=self.open_clients
         )
         staff_button.pack(side="left", padx=5, pady=5)
 
@@ -131,6 +144,15 @@ class MainWindow(ctk.CTk):
         else:
             self.help_window.focus()
 
+    def open_clients(self):
+        if not self.config.excel_file:
+            print("Файл Excel не выбран в настройках!")
+            return
+        if self.clients_window is None or not self.clients_window.winfo_exists():
+            self.clients_window = ClientsWindow(self, self.config)
+        else:
+            self.clients_window.focus()
+
     # ------------------- ДАТЫ -------------------
     def sort_dates(self, date_list):
         valid_dates = []
@@ -160,8 +182,8 @@ class MainWindow(ctk.CTk):
             mb.showerror("Ошибка", "Выберите дату!")
             return
 
-        if not self.config.excel_file:
-            mb.showerror("Ошибка", "Выберите Excel файл!")
+        if not hasattr(self.config, "clients_data") or not self.config.clients_data:
+            mb.showerror("Ошибка", "Нет данных клиентов для отображения!")
             return
 
         self.main_table_frame = ctk.CTkFrame(self)

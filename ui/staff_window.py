@@ -64,18 +64,18 @@ class StaffWindow(ctk.CTkToplevel):
 
         # ---------------- RESET BUTTON ----------------
 
-        self.reset_button = ctk.CTkButton(
-            self.bottom_frame,
-            text="Сброс настроек",
-            fg_color="gray",
-            command=self.reset_staff_settings
-        )
-
-        self.reset_button.grid(
-            row=0,
-            column=0,
-            sticky="w"
-        )
+        # self.reset_button = ctk.CTkButton(
+        #     self.bottom_frame,
+        #     text="Сброс настроек",
+        #     fg_color="gray",
+        #     command=self.reset_staff_settings
+        # )
+        #
+        # self.reset_button.grid(
+        #     row=0,
+        #     column=0,
+        #     sticky="w"
+        # )
 
         # ---------------- RIGHT BUTTONS FRAME ----------------
 
@@ -372,15 +372,15 @@ class StaffWindow(ctk.CTkToplevel):
 
         return f"https://docs.google.com/spreadsheets/d/{sheet_id}/export?format=csv&gid={gid}"
 
-    def reset_staff_settings(self):
-
-        self.config.reset_staff_settings()
-        ConfigManager.save(self.config)
-        current_date = self.date_var.get()
-        if current_date:
-            self.render_table(current_date)
-        self.master.update_dates()
-        print("Настройки персонала сброшены")
+    # def reset_staff_settings(self):
+    #
+    #     self.config.reset_staff_settings()
+    #     ConfigManager.save(self.config)
+    #     current_date = self.date_var.get()
+    #     if current_date:
+    #         self.render_table(current_date)
+    #     self.master.update_dates()
+    #     print("Настройки персонала сброшены")
 
     def is_schedule_active(self, value):
 
