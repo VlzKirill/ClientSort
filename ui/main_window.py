@@ -207,14 +207,18 @@ class MainWindow(ctk.CTk):
             return
 
         df = self.table.df.copy()
-        # берём уже существующее распределение, если есть
+
+        # гарантируем актуальное распределение
         if hasattr(self.table, "assigned") and self.table.assigned:
             df["Кому назначено"] = self.table.assigned
         else:
             df["Кому назначено"] = [""] * len(df)
 
+        # 🔥 ВАЖНО: экспортируем только нужные столбцы
+        export_df = df[["Время", "Гражданин", "Цель", "Кому назначено"]]
+
         try:
-            df.to_excel(file_path, index=False)
+            export_df.to_excel(file_path, index=False)
             mb.showinfo("Успех", f"Таблица сохранена в {file_path}")
         except Exception as e:
             mb.showerror("Ошибка", f"Не удалось сохранить файл:\n{e}")
