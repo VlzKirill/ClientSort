@@ -11,3 +11,6 @@ dist/main.exe
 
 1.0.1 build
 pyinstaller --onefile --windowed --icon=assets/icon.ico --collect-all pandas --collect-all jinja2 --collect-all customtkinter --collect-all openpyxl main.py
+
+1.0.2 build
+pyinstaller --onefile --windowed --icon=assets/icon.ico --collect-all pandas --collect-all jinja2 --collect-all customtkinter --collect-all openpyxl main.py
