@@ -3,5 +3,4 @@ build
 main.spec
 dist
 env
-Прием.xlsx
-~$Прием.xlsx
+priem.xlsx
