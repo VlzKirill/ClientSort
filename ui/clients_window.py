@@ -159,6 +159,9 @@ class ClientsWindow(ctk.CTkToplevel):
             if saved and idx < len(saved):
                 keep = saved[idx].get("keep", False)
 
+            if "Куда назначено" in row and "Окно №24" in str(row.get("Куда назначено", "")):
+                keep = True
+
             var = ctk.BooleanVar(value=keep)
             self.check_vars[idx] = var
 

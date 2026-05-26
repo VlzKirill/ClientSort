@@ -17,7 +17,7 @@ class MainTable:
         self.load_clients_data()
 
     # =========================================================
-    # ЗАГРУЗКА ДАННЫХ
+    # LOAD CLIENTS
     # =========================================================
     def load_clients_data(self):
 
@@ -73,7 +73,7 @@ class MainTable:
         ])
 
     # =========================================================
-    # PARSE / AVAILABILITY / SCORE (БЕЗ ИЗМЕНЕНИЙ)
+    # PARSE TIME
     # =========================================================
     def parse_time(self, t):
         try:
@@ -109,6 +109,9 @@ class MainTable:
 
         return result
 
+    # =========================================================
+    # AVAILABILITY
+    # =========================================================
     def is_lunch_time(self, staff, t):
         tt = t.time()
         return any(a <= tt < b for a, b in staff["lunch"])
@@ -120,7 +123,10 @@ class MainTable:
     def is_available(self, staff, t):
         return self.in_schedule(staff, t) and not self.is_lunch_time(staff, t)
 
-    def score_staff(self, staff, client, all_staff):
+    # =========================================================
+    # SCORE
+    # =========================================================
+    def score_staff(self, staff, client, all_staff, group=None):
 
         score = 0
 
@@ -145,20 +151,18 @@ class MainTable:
 
         score += abs(len(staff["assigned"]) - avg) * 3
 
-        hour_load = 0
-        for t in staff["assigned_times"]:
-            diff = abs((t - client["time"]).seconds) / 3600
-            if diff <= 1:
-                hour_load += len(staff["assigned_times"][t])
-
-        score -= hour_load * 2
+        # баланс внутри группы одинакового расписания
+        if group:
+            sizes = [len(s["assigned"]) for s in group]
+            avg_g = sum(sizes) / len(sizes)
+            score += abs(len(staff["assigned"]) - avg_g) * 15
 
         score += random.uniform(0, 2)
 
         return score
 
     # =========================================================
-    # РАСПРЕДЕЛЕНИЕ (НЕ МЕНЯЛИ)
+    # ASSIGN
     # =========================================================
     def smart_assign(self):
 
@@ -169,6 +173,7 @@ class MainTable:
 
         staff = []
 
+        # 👇 ВАЖНО: расписание берём ТОЛЬКО отсюда
         for fio, s in staff_state.items():
 
             if not s.get("active", False):
@@ -185,6 +190,7 @@ class MainTable:
                 "assigned": [],
                 "assigned_times": defaultdict(list),
                 "services": defaultdict(int),
+                "schedule_raw": s.get("schedule", "")
             })
 
         if not staff:
@@ -209,6 +215,7 @@ class MainTable:
 
         assigned = {}
 
+        # фиксированные
         for c in clients:
 
             if c["keep"] and c["fixed"]:
@@ -225,23 +232,19 @@ class MainTable:
 
         for c in remaining:
 
-            free_staff = [
-                s for s in staff
-                if self.is_available(s, c["time"])
-                and len(s["assigned_times"][c["time"]]) == 0
-            ]
-
-            available = free_staff if free_staff else [
+            available = [
                 s for s in staff
                 if self.is_available(s, c["time"])
                 and len(s["assigned_times"][c["time"]]) < 2
-                and c["service"] not in s["assigned_times"][c["time"]]
             ]
 
             if not available:
                 continue
 
-            best = min(available, key=lambda s: self.score_staff(s, c, staff))
+            best = min(
+                available,
+                key=lambda s: self.score_staff(s, c, staff, available)
+            )
 
             assigned[c["idx"]] = best["fio"]
 
@@ -255,7 +258,7 @@ class MainTable:
         return self.assigned
 
     # =========================================================
-    # ВАЖНО: ТЕПЕРЬ MAIN TABLE = СВОДНАЯ
+    # TABLE
     # =========================================================
     def show_table(self, parent):
 
@@ -268,13 +271,15 @@ class MainTable:
             "Сотрудник",
             "Первичный прием",
             "Получение услуг/сервисов",
-            "Общее кол-во клиентов"
+            "Общее кол-во клиентов",
+            "Расписание"   # 👈 В КОНЦЕ
         ]
 
         stats = defaultdict(lambda: {
             "primary": 0,
             "services": 0,
-            "total": 0
+            "total": 0,
+            "schedule": ""
         })
 
         for _, row in self.df.iterrows():
@@ -286,6 +291,9 @@ class MainTable:
             goal = row["Цель"]
 
             stats[staff]["total"] += 1
+            stats[staff]["schedule"] = self.config.staff_state.get(
+                self.date, {}
+            ).get(staff, {}).get("schedule", "")
 
             if goal == "Первичный прием":
                 stats[staff]["primary"] += 1
@@ -304,12 +312,14 @@ class MainTable:
                     staff,
                     str(d["primary"]),
                     str(d["services"]),
-                    str(d["total"])
+                    str(d["total"]),
+                    d["schedule"]
                 ]
                 max_len = max(max_len, len(vals[i]))
 
             self.column_widths.append(max_len)
 
+        # HEADER
         header = ctk.CTkFrame(frame)
         header.pack(fill="x", pady=(0, 2))
 
@@ -322,6 +332,7 @@ class MainTable:
                 anchor="w"
             ).grid(row=0, column=i, sticky="w", padx=5, pady=5)
 
+        # ROWS
         for staff, d in stats.items():
 
             row_frame = ctk.CTkFrame(frame)
@@ -331,7 +342,8 @@ class MainTable:
                 staff,
                 str(d["primary"]),
                 str(d["services"]),
-                str(d["total"])
+                str(d["total"]),
+                d["schedule"]
             ]
 
             for i, v in enumerate(values):
