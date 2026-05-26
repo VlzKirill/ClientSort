@@ -3,4 +3,4 @@ build
 main.spec
 dist
 env
-priem.xlsx
+*.xlsx
