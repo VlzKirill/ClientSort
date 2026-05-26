@@ -6,6 +6,7 @@ from ui.clients_window import ClientsWindow
 from core.config_manager import ConfigManager
 from ui.help_window import HelpWindow
 from ui.main_table import MainTable
+from ui.detail_window import DetailWindow
 import tkinter.messagebox as mb
 from tkinter import filedialog
 
@@ -28,6 +29,7 @@ class MainWindow(ctk.CTk):
         self.date_menu = None
         self.main_table_frame = None
         self.table = None
+        self.summary_window = None
         self.bottom_panel = None
 
         self.create_ui()
@@ -111,8 +113,22 @@ class MainWindow(ctk.CTk):
         self.bottom_panel.pack(side="bottom", fill="x", padx=10, pady=10)
         self.bottom_panel.grid_columnconfigure(0, weight=1)
 
+        left_buttons = ctk.CTkFrame(self.bottom_panel, fg_color="transparent")
+        left_buttons.grid(row=0, column=0, sticky="w")
+
         right_buttons = ctk.CTkFrame(self.bottom_panel, fg_color="transparent")
         right_buttons.grid(row=0, column=1, sticky="e")
+
+        #Summary
+        summary_btn = ctk.CTkButton(
+            left_buttons,
+            text="Детальная таблица",
+            width=40,
+            height=40,
+            font=("Arial", 18),
+            command=self.open_summary_table
+        )
+        summary_btn.pack(side="left", padx=5)
 
         # Excel
         excel_btn = ctk.CTkButton(
@@ -191,6 +207,16 @@ class MainWindow(ctk.CTk):
 
         self.table = MainTable(self.config, self.selected_date.get())
         self.table.show_table(self.main_table_frame)
+
+    #-------------------- СВОДНАЯ ТАБЛИЦА ----------------------
+    def open_summary_table(self):
+        if self.table is None:
+            mb.showerror("Ошибка", "Сначала выполните распределение")
+            return
+        if self.summary_window is None or not self.summary_window.winfo_exists():
+            self.summary_window = DetailWindow(self, self.table.df)
+        else:
+            self.summary_window.focus()
 
     # ------------------- СОХРАНЕНИЕ В EXCEL -------------------
     def save_table_excel(self):
