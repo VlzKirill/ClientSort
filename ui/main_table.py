@@ -21,10 +21,7 @@ class MainTable:
     # =========================================================
     def load_clients_data(self):
 
-        if (
-            not hasattr(self.config, "clients_data")
-            or not self.config.clients_data
-        ):
+        if not hasattr(self.config, "clients_data") or not self.config.clients_data:
             self.df = pd.DataFrame(columns=[
                 "Время",
                 "Гражданин",
@@ -41,10 +38,10 @@ class MainTable:
 
             if isinstance(row, dict):
                 keep = row.get("keep", row.get("Не менять", False))
-                time_val = row.get("time", row.get("Время", ""))
-                fio = row.get("citizen", row.get("Гражданин", ""))
-                service = row.get("service", row.get("Цель", ""))
-                fixed = row.get("assigned", row.get("Фиксированный сотрудник", ""))
+                time_val = row.get("time", "")
+                fio = row.get("citizen", "")
+                service = row.get("service", "")
+                fixed = row.get("assigned", "")
 
             else:
                 vals = list(row)
@@ -73,7 +70,7 @@ class MainTable:
         ])
 
     # =========================================================
-    # PARSE TIME
+    # PARSERS
     # =========================================================
     def parse_time(self, t):
         try:
@@ -83,8 +80,7 @@ class MainTable:
 
     def parse_schedule(self, s):
         try:
-            s = str(s).replace(" ", "")
-            start, end = s.split("-")
+            start, end = str(s).replace(" ", "").split("-")
             return (
                 datetime.strptime(start, "%H:%M"),
                 datetime.strptime(end, "%H:%M")
@@ -110,59 +106,7 @@ class MainTable:
         return result
 
     # =========================================================
-    # AVAILABILITY
-    # =========================================================
-    def is_lunch_time(self, staff, t):
-        tt = t.time()
-        return any(a <= tt < b for a, b in staff["lunch"])
-
-    def in_schedule(self, staff, t):
-        tt = t.time()
-        return staff["start"].time() <= tt < staff["end"].time()
-
-    def is_available(self, staff, t):
-        return self.in_schedule(staff, t) and not self.is_lunch_time(staff, t)
-
-    # =========================================================
-    # SCORE
-    # =========================================================
-    def score_staff(self, staff, client, all_staff, group=None):
-
-        score = 0
-
-        current_time_clients = len(
-            staff["assigned_times"][client["time"]]
-        )
-
-        if current_time_clients >= 2:
-            score += 100000
-
-        if client["service"] in staff["assigned_times"][client["time"]]:
-            score += 5000
-
-        score += len(staff["assigned"]) * 3
-        score += staff["services"][client["service"]] * 4
-
-        if current_time_clients == 1:
-            score += 120
-
-        total = sum(len(s["assigned"]) for s in all_staff)
-        avg = total / max(len(all_staff), 1)
-
-        score += abs(len(staff["assigned"]) - avg) * 3
-
-        # баланс внутри группы одинакового расписания
-        if group:
-            sizes = [len(s["assigned"]) for s in group]
-            avg_g = sum(sizes) / len(sizes)
-            score += abs(len(staff["assigned"]) - avg_g) * 15
-
-        score += random.uniform(0, 2)
-
-        return score
-
-    # =========================================================
-    # ASSIGN
+    # SMART ASSIGN (ОБНОВЛЕННАЯ ВЕРСИЯ С СПРАВЕДЛИВОСТЬЮ)
     # =========================================================
     def smart_assign(self):
 
@@ -171,33 +115,44 @@ class MainTable:
 
         staff_state = self.config.staff_state.get(self.date, {})
 
+        # =========================================================
+        # BUILD STAFF
+        # =========================================================
         staff = []
 
-        # 👇 ВАЖНО: расписание берём ТОЛЬКО отсюда
         for fio, s in staff_state.items():
 
             if not s.get("active", False):
                 continue
 
             start, end = self.parse_schedule(s.get("schedule", "09:00-18:00"))
-            lunches = self.parse_lunches(s.get("lunch", ""))
+            if not start or not end:
+                continue
+
+            lunch = self.parse_lunches(s.get("lunch", ""))
+
+            # длина смены (в минутах)
+            shift_minutes = (end.hour * 60 + end.minute) - (start.hour * 60 + start.minute)
 
             staff.append({
                 "fio": fio,
                 "start": start,
                 "end": end,
-                "lunch": lunches,
+                "lunch": lunch,
+                "shift_minutes": shift_minutes,
+
                 "assigned": [],
                 "assigned_times": defaultdict(list),
-                "services": defaultdict(int),
-                "schedule_raw": s.get("schedule", "")
+                "load": 0
             })
 
         if not staff:
             return []
 
+        # =========================================================
+        # CLIENTS
+        # =========================================================
         clients = []
-
         for i, r in self.df.iterrows():
 
             t = self.parse_time(r["Время"])
@@ -207,58 +162,153 @@ class MainTable:
             clients.append({
                 "idx": i,
                 "time": t,
-                "fio": r["Гражданин"],
                 "service": r["Цель"],
                 "keep": r["Не менять"],
                 "fixed": r["Фиксированный сотрудник"]
             })
 
-        assigned = {}
+        # =========================================================
+        # HELPERS
+        # =========================================================
+        def is_lunch(st, t):
+            tt = t.time()
+            return any(a <= tt < b for a, b in st["lunch"])
 
-        # фиксированные
-        for c in clients:
-
-            if c["keep"] and c["fixed"]:
-                assigned[c["idx"]] = c["fixed"]
-
-                for s in staff:
-                    if s["fio"] == c["fixed"]:
-                        s["assigned"].append(c["fio"])
-                        s["services"][c["service"]] += 1
-                        s["assigned_times"][c["time"]].append(c["service"])
-
-        remaining = [c for c in clients if c["idx"] not in assigned]
-        remaining.sort(key=lambda x: (x["time"], random.random()))
-
-        for c in remaining:
-
-            available = [
-                s for s in staff
-                if self.is_available(s, c["time"])
-                and len(s["assigned_times"][c["time"]]) < 2
-            ]
-
-            if not available:
-                continue
-
-            best = min(
-                available,
-                key=lambda s: self.score_staff(s, c, staff, available)
+        def available(st, t):
+            return (
+                st["start"].time() <= t.time() < st["end"].time()
+                and not is_lunch(st, t)
             )
 
-            assigned[c["idx"]] = best["fio"]
+        # =========================================================
+        # НОВАЯ МЕТРИКА СПРАВЕДЛИВОСТИ
+        # =========================================================
+        def effective_load(st):
+            capacity = max(1, st["shift_minutes"] / 60)  # часы смены
 
-            best["assigned"].append(c["fio"])
-            best["services"][c["service"]] += 1
-            best["assigned_times"][c["time"]].append(c["service"])
+            return st["load"] / capacity
 
+        # =========================================================
+        # ПОДБОР СОТРУДНИКА
+        # =========================================================
+        def pick_staff(c):
+
+            candidates = []
+
+            for s in staff:
+
+                if not available(s, c["time"]):
+                    continue
+
+                slot = s["assigned_times"][c["time"]]
+
+                # максимум 2 клиента на слот
+                if len(slot) >= 2:
+                    continue
+
+                same_service_count = sum(1 for x in slot if x == c["service"])
+
+                score = effective_load(s)
+
+                # штраф за одинаковые услуги
+                score += same_service_count * 2
+
+                # лёгкая рандомизация
+                score += random.uniform(0, 0.2)
+
+                candidates.append((score, s))
+
+            if not candidates:
+                return None
+
+            candidates.sort(key=lambda x: x[0])
+            return candidates[0][1]
+
+        # =========================================================
+        # FIXED FIRST
+        # =========================================================
+        assigned = {}
+
+        for c in clients:
+            if c["keep"] and c["fixed"]:
+                for s in staff:
+                    if s["fio"] == c["fixed"]:
+                        assigned[c["idx"]] = s["fio"]
+                        s["assigned"].append(c["service"])
+                        s["assigned_times"][c["time"]].append(c["service"])
+                        s["load"] += 1
+                        break
+
+        remaining = [c for c in clients if c["idx"] not in assigned]
+
+        primary = [c for c in remaining if c["service"] == "Первичный прием"]
+        service = [c for c in remaining if c["service"] == "Получение услуг/сервисов"]
+
+        random.shuffle(primary)
+        random.shuffle(service)
+
+        # =========================================================
+        # PHASE 1
+        # =========================================================
+        for c in primary:
+            chosen = pick_staff(c)
+            if not chosen:
+                continue
+
+            assigned[c["idx"]] = chosen["fio"]
+            chosen["assigned"].append(c["service"])
+            chosen["assigned_times"][c["time"]].append(c["service"])
+            chosen["load"] += 1
+
+        # =========================================================
+        # PHASE 2
+        # =========================================================
+        for c in service:
+
+            def score_fn(s):
+
+                if not available(s, c["time"]):
+                    return 10**9
+
+                slot = s["assigned_times"][c["time"]]
+
+                penalty = 0
+
+                # жёсткий штраф за повтор услуг в одном слоте
+                if c["service"] in slot:
+                    penalty += 3
+
+                # перегрузка слота
+                if len(slot) >= 2:
+                    penalty += 100
+
+                return effective_load(s) + penalty + random.random() * 0.2
+
+            chosen = min(staff, key=score_fn)
+
+            if not chosen or not available(chosen, c["time"]):
+                continue
+
+            slot = chosen["assigned_times"][c["time"]]
+
+            if len(slot) >= 2:
+                continue
+
+            assigned[c["idx"]] = chosen["fio"]
+            chosen["assigned"].append(c["service"])
+            slot.append(c["service"])
+            chosen["load"] += 1
+
+        # =========================================================
+        # OUTPUT
+        # =========================================================
         self.assigned = [assigned.get(i, "") for i in range(len(self.df))]
         self.df["Кому назначено"] = self.assigned
 
         return self.assigned
 
     # =========================================================
-    # TABLE
+    # TABLE (ВСЕ СОТРУДНИКИ ПОКАЗЫВАЮТСЯ)
     # =========================================================
     def show_table(self, parent):
 
@@ -272,7 +322,7 @@ class MainTable:
             "Первичный прием",
             "Получение услуг/сервисов",
             "Общее кол-во клиентов",
-            "Расписание"   # 👈 В КОНЦЕ
+            "Расписание"
         ]
 
         stats = defaultdict(lambda: {
@@ -282,34 +332,42 @@ class MainTable:
             "schedule": ""
         })
 
-        for _, row in self.df.iterrows():
-
-            staff = row["Кому назначено"]
-            if not staff:
+        for _, r in self.df.iterrows():
+            s = r["Кому назначено"]
+            if not s:
                 continue
 
-            goal = row["Цель"]
+            stats[s]["total"] += 1
 
-            stats[staff]["total"] += 1
-            stats[staff]["schedule"] = self.config.staff_state.get(
-                self.date, {}
-            ).get(staff, {}).get("schedule", "")
+            if r["Цель"] == "Первичный прием":
+                stats[s]["primary"] += 1
+            else:
+                stats[s]["services"] += 1
 
-            if goal == "Первичный прием":
-                stats[staff]["primary"] += 1
+        staff_state = self.config.staff_state.get(self.date, {})
 
-            elif goal == "Получение услуг/сервисов":
-                stats[staff]["services"] += 1
+        for fio, s in staff_state.items():
+            if not s.get("active", False):
+                continue
+
+            if fio not in stats:
+                stats[fio] = {
+                    "primary": 0,
+                    "services": 0,
+                    "total": 0,
+                    "schedule": s.get("schedule", "")
+                }
+            else:
+                stats[fio]["schedule"] = s.get("schedule", "")
 
         self.column_widths = []
 
         for i, col in enumerate(headers):
-
             max_len = len(col)
 
-            for staff, d in stats.items():
+            for s, d in stats.items():
                 vals = [
-                    staff,
+                    s,
                     str(d["primary"]),
                     str(d["services"]),
                     str(d["total"]),
@@ -319,9 +377,8 @@ class MainTable:
 
             self.column_widths.append(max_len)
 
-        # HEADER
         header = ctk.CTkFrame(frame)
-        header.pack(fill="x", pady=(0, 2))
+        header.pack(fill="x")
 
         for i, col in enumerate(headers):
             ctk.CTkLabel(
@@ -330,27 +387,25 @@ class MainTable:
                 width=self.column_widths[i] * 10,
                 font=("Arial", 14, "bold"),
                 anchor="w"
-            ).grid(row=0, column=i, sticky="w", padx=5, pady=5)
+            ).grid(row=0, column=i, sticky="w")
 
-        # ROWS
-        for staff, d in stats.items():
+        for s, d in sorted(stats.items(), key=lambda x: x[0]):
 
-            row_frame = ctk.CTkFrame(frame)
-            row_frame.pack(fill="x", pady=1)
+            row = ctk.CTkFrame(frame)
+            row.pack(fill="x")
 
-            values = [
-                staff,
-                str(d["primary"]),
-                str(d["services"]),
-                str(d["total"]),
+            vals = [
+                s,
+                d["primary"],
+                d["services"],
+                d["total"],
                 d["schedule"]
             ]
 
-            for i, v in enumerate(values):
+            for i, v in enumerate(vals):
                 ctk.CTkLabel(
-                    row_frame,
+                    row,
                     text=v,
                     width=self.column_widths[i] * 10,
-                    font=("Arial", 13),
                     anchor="w"
-                ).grid(row=0, column=i, sticky="w", padx=5, pady=2)
+                ).grid(row=0, column=i, sticky="w")
