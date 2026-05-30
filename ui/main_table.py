@@ -70,8 +70,6 @@ class MainTable:
         ])
 
     # =========================================================
-    # PARSERS
-    # =========================================================
     def parse_time(self, t):
         try:
             return datetime.strptime(str(t).strip(), "%H:%M")
@@ -106,7 +104,7 @@ class MainTable:
         return result
 
     # =========================================================
-    # SMART ASSIGN (ОБНОВЛЕННАЯ ВЕРСИЯ С СПРАВЕДЛИВОСТЬЮ)
+    # SMART ASSIGN
     # =========================================================
     def smart_assign(self):
 
@@ -116,9 +114,10 @@ class MainTable:
         staff_state = self.config.staff_state.get(self.date, {})
 
         # =========================================================
-        # BUILD STAFF
+        # STAFF BUILD
         # =========================================================
         staff = []
+        staff_by_name = {}
 
         for fio, s in staff_state.items():
 
@@ -131,10 +130,9 @@ class MainTable:
 
             lunch = self.parse_lunches(s.get("lunch", ""))
 
-            # длина смены (в минутах)
             shift_minutes = (end.hour * 60 + end.minute) - (start.hour * 60 + start.minute)
 
-            staff.append({
+            obj = {
                 "fio": fio,
                 "start": start,
                 "end": end,
@@ -144,10 +142,10 @@ class MainTable:
                 "assigned": [],
                 "assigned_times": defaultdict(list),
                 "load": 0
-            })
+            }
 
-        if not staff:
-            return []
+            staff.append(obj)
+            staff_by_name[fio] = obj
 
         # =========================================================
         # CLIENTS
@@ -168,8 +166,6 @@ class MainTable:
             })
 
         # =========================================================
-        # HELPERS
-        # =========================================================
         def is_lunch(st, t):
             tt = t.time()
             return any(a <= tt < b for a, b in st["lunch"])
@@ -180,16 +176,37 @@ class MainTable:
                 and not is_lunch(st, t)
             )
 
-        # =========================================================
-        # НОВАЯ МЕТРИКА СПРАВЕДЛИВОСТИ
-        # =========================================================
         def effective_load(st):
-            capacity = max(1, st["shift_minutes"] / 60)  # часы смены
-
+            capacity = max(1, st["shift_minutes"] / 60)
             return st["load"] / capacity
 
         # =========================================================
-        # ПОДБОР СОТРУДНИКА
+        # FIXED ASSIGNMENT (ВАЖНОЕ ИСПРАВЛЕНИЕ)
+        # =========================================================
+        assigned = {}
+
+        for c in clients:
+            if c["keep"] and c["fixed"]:
+
+                assigned[c["idx"]] = c["fixed"]
+
+                # если сотрудник есть в системе — учитываем в нагрузке
+                if c["fixed"] in staff_by_name:
+                    s = staff_by_name[c["fixed"]]
+                    s["assigned"].append(c["service"])
+                    s["assigned_times"][c["time"]].append(c["service"])
+                    s["load"] += 1
+
+        remaining = [c for c in clients if c["idx"] not in assigned]
+
+        primary = [c for c in remaining if c["service"] == "Первичный прием"]
+        service = [c for c in remaining if c["service"] == "Получение услуг/сервисов"]
+
+        random.shuffle(primary)
+        random.shuffle(service)
+
+        # =========================================================
+        # PICK STAFF
         # =========================================================
         def pick_staff(c):
 
@@ -202,18 +219,10 @@ class MainTable:
 
                 slot = s["assigned_times"][c["time"]]
 
-                # максимум 2 клиента на слот
                 if len(slot) >= 2:
                     continue
 
-                same_service_count = sum(1 for x in slot if x == c["service"])
-
                 score = effective_load(s)
-
-                # штраф за одинаковые услуги
-                score += same_service_count * 2
-
-                # лёгкая рандомизация
                 score += random.uniform(0, 0.2)
 
                 candidates.append((score, s))
@@ -223,29 +232,6 @@ class MainTable:
 
             candidates.sort(key=lambda x: x[0])
             return candidates[0][1]
-
-        # =========================================================
-        # FIXED FIRST
-        # =========================================================
-        assigned = {}
-
-        for c in clients:
-            if c["keep"] and c["fixed"]:
-                for s in staff:
-                    if s["fio"] == c["fixed"]:
-                        assigned[c["idx"]] = s["fio"]
-                        s["assigned"].append(c["service"])
-                        s["assigned_times"][c["time"]].append(c["service"])
-                        s["load"] += 1
-                        break
-
-        remaining = [c for c in clients if c["idx"] not in assigned]
-
-        primary = [c for c in remaining if c["service"] == "Первичный прием"]
-        service = [c for c in remaining if c["service"] == "Получение услуг/сервисов"]
-
-        random.shuffle(primary)
-        random.shuffle(service)
 
         # =========================================================
         # PHASE 1
@@ -273,12 +259,6 @@ class MainTable:
                 slot = s["assigned_times"][c["time"]]
 
                 penalty = 0
-
-                # жёсткий штраф за повтор услуг в одном слоте
-                if c["service"] in slot:
-                    penalty += 3
-
-                # перегрузка слота
                 if len(slot) >= 2:
                     penalty += 100
 
@@ -308,7 +288,7 @@ class MainTable:
         return self.assigned
 
     # =========================================================
-    # TABLE (ВСЕ СОТРУДНИКИ ПОКАЗЫВАЮТСЯ)
+    # TABLE
     # =========================================================
     def show_table(self, parent):
 
@@ -346,19 +326,10 @@ class MainTable:
 
         staff_state = self.config.staff_state.get(self.date, {})
 
-        for fio, s in staff_state.items():
-            if not s.get("active", False):
-                continue
-
-            if fio not in stats:
-                stats[fio] = {
-                    "primary": 0,
-                    "services": 0,
-                    "total": 0,
-                    "schedule": s.get("schedule", "")
-                }
-            else:
-                stats[fio]["schedule"] = s.get("schedule", "")
+        # добавляем только тех, кто реально есть в stats
+        for fio in list(stats.keys()):
+            if fio in staff_state:
+                stats[fio]["schedule"] = staff_state[fio].get("schedule", "")
 
         self.column_widths = []
 
