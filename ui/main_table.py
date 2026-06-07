@@ -141,6 +141,10 @@ class MainTable:
 
                 "assigned": [],
                 "assigned_times": defaultdict(list),
+
+                # ключевая доработка
+                "time_load": defaultdict(int),
+
                 "load": 0
             }
 
@@ -181,7 +185,27 @@ class MainTable:
             return st["load"] / capacity
 
         # =========================================================
-        # FIXED ASSIGNMENT (ВАЖНОЕ ИСПРАВЛЕНИЕ)
+        # SPREAD PENALTY (НОВЫЙ БАЛАНС ПО ВРЕМЕНИ)
+        # =========================================================
+        def spread_penalty(st, target_time):
+
+            slot_load = st["time_load"][target_time]
+
+            nearby_load = 0
+
+            for tm, cnt in st["time_load"].items():
+
+                diff_minutes = abs(
+                    (tm - target_time).total_seconds()
+                ) / 60
+
+                if diff_minutes <= 60:
+                    nearby_load += cnt
+
+            return slot_load * 4 + nearby_load * 0.5
+
+        # =========================================================
+        # FIXED ASSIGNMENT
         # =========================================================
         assigned = {}
 
@@ -190,12 +214,12 @@ class MainTable:
 
                 assigned[c["idx"]] = c["fixed"]
 
-                # если сотрудник есть в системе — учитываем в нагрузке
                 if c["fixed"] in staff_by_name:
                     s = staff_by_name[c["fixed"]]
                     s["assigned"].append(c["service"])
                     s["assigned_times"][c["time"]].append(c["service"])
                     s["load"] += 1
+                    s["time_load"][c["time"]] += 1
 
         remaining = [c for c in clients if c["idx"] not in assigned]
 
@@ -222,8 +246,11 @@ class MainTable:
                 if len(slot) >= 2:
                     continue
 
-                score = effective_load(s)
-                score += random.uniform(0, 0.2)
+                score = (
+                    effective_load(s)
+                    + spread_penalty(s, c["time"])
+                    + random.uniform(0, 0.1)
+                )
 
                 candidates.append((score, s))
 
@@ -245,6 +272,7 @@ class MainTable:
             chosen["assigned"].append(c["service"])
             chosen["assigned_times"][c["time"]].append(c["service"])
             chosen["load"] += 1
+            chosen["time_load"][c["time"]] += 1
 
         # =========================================================
         # PHASE 2
@@ -259,10 +287,19 @@ class MainTable:
                 slot = s["assigned_times"][c["time"]]
 
                 penalty = 0
+
                 if len(slot) >= 2:
                     penalty += 100
 
-                return effective_load(s) + penalty + random.random() * 0.2
+                if c["service"] in slot:
+                    penalty += 3
+
+                return (
+                    effective_load(s)
+                    + spread_penalty(s, c["time"])
+                    + penalty
+                    + random.random() * 0.1
+                )
 
             chosen = min(staff, key=score_fn)
 
@@ -278,6 +315,7 @@ class MainTable:
             chosen["assigned"].append(c["service"])
             slot.append(c["service"])
             chosen["load"] += 1
+            chosen["time_load"][c["time"]] += 1
 
         # =========================================================
         # OUTPUT
@@ -326,10 +364,9 @@ class MainTable:
 
         staff_state = self.config.staff_state.get(self.date, {})
 
-        # добавляем только тех, кто реально есть в stats
-        for fio in list(stats.keys()):
-            if fio in staff_state:
-                stats[fio]["schedule"] = staff_state[fio].get("schedule", "")
+        for fio, s in staff_state.items():
+            if fio in stats:
+                stats[fio]["schedule"] = s.get("schedule", "")
 
         self.column_widths = []
 
