@@ -174,6 +174,45 @@ class MainTable:
             tt = t.time()
             return any(a <= tt < b for a, b in st["lunch"])
 
+        # def available(st, t):
+        #
+        #     current_minutes = t.hour * 60 + t.minute
+        #
+        #     start_minutes = (
+        #             st["start"].hour * 60 +
+        #             st["start"].minute
+        #     )
+        #
+        #     end_minutes = (
+        #             st["end"].hour * 60 +
+        #             st["end"].minute
+        #     )
+        #
+        #     # вне смены
+        #     if not (start_minutes <= current_minutes < end_minutes):
+        #         return False
+        #
+        #     # менее чем за час до конца смены
+        #     if current_minutes >= end_minutes - 60:
+        #         return False
+        #
+        #     # обед
+        #     if is_lunch(st, t):
+        #         return False
+        #
+        #     # менее чем за 30 минут до обеда
+        #     for lunch_start, lunch_end in st["lunch"]:
+        #
+        #         lunch_minutes = (
+        #                 lunch_start.hour * 60 +
+        #                 lunch_start.minute
+        #         )
+        #
+        #         if lunch_minutes - 30 <= current_minutes < lunch_minutes:
+        #             return False
+        #
+        #     return True
+
         def available(st, t):
 
             current_minutes = t.hour * 60 + t.minute
@@ -220,6 +259,41 @@ class MainTable:
             return slot_load * 4 + nearby_load * 0.5
 
         # =========================================================
+        # BONUS ЗА ВЫХОД С ОБЕДА
+        # =========================================================
+        def lunch_exit_bonus(st, target_time):
+
+            bonus = 0
+
+            target_minutes = (
+                    target_time.hour * 60 +
+                    target_time.minute
+            )
+
+            for lunch_start, lunch_end in st["lunch"]:
+
+                lunch_end_minutes = (
+                        lunch_end.hour * 60 +
+                        lunch_end.minute
+                )
+
+                diff = abs(target_minutes - lunch_end_minutes)
+
+                # точное совпадение времени выхода с записью
+                if diff == 0:
+                    bonus -= 3.0
+
+                # в течение 30 минут после выхода
+                elif diff <= 30:
+                    bonus -= 1.5
+
+                # в течение часа после выхода
+                elif diff <= 60:
+                    bonus -= 0.5
+
+            return bonus
+
+        # =========================================================
         # FIXED ASSIGNMENT
         # =========================================================
         assigned = {}
@@ -264,6 +338,7 @@ class MainTable:
                 score = (
                     effective_load(s)
                     + spread_penalty(s, c["time"])
+                    + lunch_exit_bonus(s, c["time"])
                     + random.uniform(0, 0.1)
                 )
 
@@ -312,6 +387,7 @@ class MainTable:
                 return (
                     effective_load(s)
                     + spread_penalty(s, c["time"])
+                    + lunch_exit_bonus(s, c["time"])
                     + penalty
                     + random.random() * 0.1
                 )
