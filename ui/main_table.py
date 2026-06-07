@@ -175,11 +175,26 @@ class MainTable:
             return any(a <= tt < b for a, b in st["lunch"])
 
         def available(st, t):
-            return (
-                st["start"].time() <= t.time() < st["end"].time()
-                and not is_lunch(st, t)
-            )
 
+            current_minutes = t.hour * 60 + t.minute
+
+            # рабочее время
+            if not (st["start"].time() <= t.time() < st["end"].time()):
+                return False
+
+            # обед
+            if is_lunch(st, t):
+                return False
+
+            # не назначать менее чем за 30 минут до обеда
+            for lunch_start, lunch_end in st["lunch"]:
+
+                lunch_minutes = lunch_start.hour * 60 + lunch_start.minute
+
+                if lunch_minutes - 30 <= current_minutes < lunch_minutes:
+                    return False
+
+            return True
         def effective_load(st):
             capacity = max(1, st["shift_minutes"] / 60)
             return st["load"] / capacity
