@@ -130,7 +130,7 @@ class SettingsWindow(ctk.CTkToplevel):
         self.config.excel_file = self.file_path_entry.get()
 
         ConfigManager.save(self.config)
-        print("Настройки сохранены")
+        # print("Настройки сохранены")
 
     def load_settings(self):
         self.schedule_entry.delete(0, "end")
@@ -145,4 +145,4 @@ class SettingsWindow(ctk.CTkToplevel):
         self.config.reset_main_settings()
         ConfigManager.save(self.config)
         self.load_settings()
-        print("Настройки сброшены")
+        # print("Настройки сброшены")

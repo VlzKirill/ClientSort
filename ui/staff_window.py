@@ -118,24 +118,24 @@ class StaffWindow(ctk.CTkToplevel):
             print("Нет ссылки")
             return
 
-        try:
-            self.df = pd.read_csv(self.convert_to_csv_url(url))
-            self.lunch_data = self.load_lunch_data()
+        # try:
+        self.df = pd.read_csv(self.convert_to_csv_url(url))
+        self.lunch_data = self.load_lunch_data()
 
-            # берём колонки-даты
-            self.date_columns = [
-                col for col in self.df.columns
-                if col not in ["ФИО", "График", "Дежурства"]
-            ]
+        # берём колонки-даты
+        self.date_columns = [
+            col for col in self.df.columns
+            if col not in ["ФИО", "График", "Дежурства"]
+        ]
 
-            self.date_menu.configure(values=self.date_columns)
+        self.date_menu.configure(values=self.date_columns)
 
-            if self.date_columns:
-                self.date_var.set(self.date_columns[0])
-                self.render_table(self.date_columns[0])
+        if self.date_columns:
+            self.date_var.set(self.date_columns[0])
+            self.render_table(self.date_columns[0])
 
-        except Exception as e:
-            print("Ошибка загрузки:", e)
+        # except Exception as e:
+            # print("Ошибка загрузки:", e)
 
     def load_lunch_data(self):
 
@@ -172,8 +172,7 @@ class StaffWindow(ctk.CTkToplevel):
             return lunch_map
 
         except Exception as e:
-
-            print("Ошибка загрузки обедов:", e)
+            # print("Ошибка загрузки обедов:", e)
             return {}
 
     # ---------------- DATE CHANGE ----------------
@@ -354,7 +353,7 @@ class StaffWindow(ctk.CTkToplevel):
 
         ConfigManager.save(self.config)
         self.master.update_dates()
-        print("Сохранено")
+        # print("Сохранено")
 
     # ---------------- CSV FIX ----------------
     def convert_to_csv_url(self, url: str) -> str:

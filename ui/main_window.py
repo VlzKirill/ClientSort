@@ -234,7 +234,7 @@ class MainWindow(ctk.CTk):
 
         df = self.table.df.copy()
 
-        df["Назначенное дата и время"] = self.table.df["Время"].apply(
+        df["Время"] = self.table.df["Время"].apply(
             lambda t: f"{self.selected_date.get()} {t}"
         )
 
@@ -245,7 +245,7 @@ class MainWindow(ctk.CTk):
             df["Кому назначено"] = [""] * len(df)
 
         # 🔥 ВАЖНО: экспортируем только нужные столбцы
-        export_df = df[["Назначенное дата и время", "Гражданин", "Цель", "Кому назначено"]]
+        export_df = df[["Время", "Гражданин", "Цель", "Кому назначено"]]
 
         try:
             export_df.to_excel(file_path, index=False)
